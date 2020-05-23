@@ -29,20 +29,27 @@ class Counter {
 }
 
 class StratumServer {
-    #server = null;
+    #counter = new Counter();
     #shareTarget = diff1;
     #templates = [];
+
+    #server = null;
+    #port = 3333;
+    #extraNonce1Len = 0;
+    #extraNonce2Len = Template.extraNonceLen;
+
+    #subscriptions = new Map();
+    #authorized = new Map();
 
     constructor(options, initcb) {
         if ((options.extraNonce1Len >= Template.extraNonceLen))
             throw 'Invalid extranonce size';
-        this.#server = net.createServer(this.handleConnection);
-        this.#server.miners = {};
-        this.#server.port = options.port;
-        this.#server.counter = new Counter();
-        this.#server.extraNonce1Len = options.extraNonce1Len;
-        this.#server.extraNonce2Len = Template.extraNonceLen - options.extraNonce1Len;
-        this.#server.stratum = this;
+        this.#server = net.createServer(this.#handleConnection);
+
+        this.#port = options.port;
+        this.#counter = new Counter();
+        this.#extraNonce1Len = options.extraNonce1Len;
+        this.#extraNonce2Len = Template.extraNonceLen - options.extraNonce1Len;
 
         if (options.shareTarget) {
             this.#shareTarget = options.shareTarget;
@@ -51,13 +58,13 @@ class StratumServer {
 
     start(initcb) {
         if (!this.#server.listening) {
-            this.#server.listen(this.#server.port, error => {
+            this.#server.listen(this.#port, error => {
                 if (error) {
-                    console.error("Unable to start server on: " + this.#server.port + " Message: " + error);
+                    console.error("Unable to start server on: " + this.#port + " Message: " + error);
                     return;
                 }
                 initcb();
-                console.log("Started server on port: " + this.#server.port);
+                console.log("Started server on port: " + this.#port);
             });
         }
     }
@@ -69,30 +76,28 @@ class StratumServer {
             this.#templates.length = 0;
         }
 
-        let jobid = this.#server.counter.next(4);
-        let template = new Template(data, recipient, this.#server.counter.nextBin(8));
+        let jobid = this.#counter.next(4);
+        let template = new Template(data, recipient, this.#counter.nextBin(8));
         this.#templates.push({ jobid: jobid, template: template });
 
-        if (Object.keys(this.#server.miners).length != 0) {
+        if (this.#authorized.size !== 0) {
             let job = template.getJobParams(jobid, cleanjobs);
-            console.log('Worker', process.pid, 'is broadcasting job', jobid, 'to', Object.values(this.#server.miners).length, 'miners');
-            Object.values(this.#server.miners).forEach(miner => {
-                if (miner.authorized) {
-                    // Broadcast jobs to authorized miners
-                    StratumServer.notify(miner, 'mining.notify', job);
-                }
-            });
+            console.log('Worker %d is broadcasting job %s to %d miners', process.pid, jobid, this.#authorized.size);
+            for(const miner of this.#authorized) {
+                // Broadcast jobs to authorized miners
+                StratumServer.notify(miner, 'mining.notify', job);
+            };
         }
     }
 
-    sendjob(miner, cleanjobs = false) {
-        let { jobid, template } = this.#templates[this.#templates.length - 1];
-        let job = template.getJobParams(jobid, cleanjobs);
+    #sendjob = (miner, cleanjobs = false) => {
+        const { jobid, template } = this.#templates[this.#templates.length - 1];
+        const job = template.getJobParams(jobid, cleanjobs);
         StratumServer.notify(miner, 'mining.notify', job);
     }
 
-    handleMessage(miner, message) {
-        if (!('id' in message && 'method' in message && 'params' in message)) {
+    #handleMessage = (miner, message) => {
+        if (message.id === undefined || message.method === undefined || message.params === undefined) {
             console.warn('Malformed stratum request from ' + miner.remoteAddress);
             miner.destroy();
             return;
@@ -104,29 +109,37 @@ class StratumServer {
                 if (subscription) {
                     // TODO: resume subscription
                 }
-                miner.subscribed = true;
-                StratumServer.reply(miner, message.id, null, [
-                    [
-                        ["mining.set_difficulty", miner.subscriptionId],
-                        ["mining.notify", miner.subscriptionId]
-                    ],
-                    miner.extraNonce1,
-                    miner.server.extraNonce2Len
-                ]);
+
+                if (!this.#subscriptions.has(miner)) {
+                    const subscriptionId = this.#counter.next();
+                    this.#subscriptions.set(miner, subscriptionId);
+                    StratumServer.reply(miner, message.id, null, [
+                        [
+                            ["mining.set_difficulty", subscriptionId],
+                            ["mining.notify", subscriptionId]
+                        ],
+                        subscriptionId.slice(0, 2 * this.#extraNonce1Len),
+                        this.#extraNonce2Len
+                    ]);
+
+                    console.log('Client %s reserves subscriptionId %s', miner.remoteAddress, subscriptionId);
+                }
             }; break;
             case 'mining.authorize': {
-                if (!miner.subscribed)
+                if (!this.#subscriptions.has(miner))
                     return StratumServer.reply(miner, message.id, 'You are not eligible to do such requests', null);
-                let [user, password] = message.params;
-                miner.authorized = true;
+                const [user, password] = message.params;
+                // Remember as authorized
+                this.#authorized.set(miner, user);
                 StratumServer.reply(miner, message.id, null, true);
+                // Send difficulty and job
                 StratumServer.notify(miner, 'mining.set_difficulty', [Number(diff1 / this.#shareTarget)]);
-                if (this.#templates.length) {
-                    miner.server.stratum.sendjob(miner, true);
+                if (this.#templates.length !== 0) {
+                    this.#sendjob(miner, true);
                 }
             }; break;
             case 'mining.get_transactions': {
-                if (!miner.subscribed || !miner.authorized)
+                if (!this.#subscriptions.has(miner) || !this.#authorized.has(miner))
                     return StratumServer.reply(miner, message.id, 'You are not eligible to do such requests', null);
                 let topJob = this.#templates[this.#templates.length - 1];
                 if (!topJob)
@@ -134,7 +147,7 @@ class StratumServer {
                 StratumServer.reply(miner, message.id, null, topJob.template.data);
             }; break;
             case 'mining.submit': {
-                if (!miner.authorized)
+                if (!this.#subscriptions.has(miner) || !this.#authorized.has(miner))
                     return StratumServer.reply(miner, message.id, 'You are not eligible to do such requests', null);
                 const [user, jobid, extraNonce2, time, nonce] = message.params;
                 const job = this.#templates.find(item => item.jobid == jobid);
@@ -142,12 +155,17 @@ class StratumServer {
                     return StratumServer.reply(miner, message.id, 'Job not found', false);
                 }
 
+                // extraNonce1 is basically a beginning of subscriptionId
+                const extraNonce1 = this.#subscriptions
+                    .get(miner)
+                    .slice(0, 2 * this.#extraNonce1Len);
+
                 // New block header
-                const header = job.template.serializeBlockHeader(miner.extraNonce1, extraNonce2, time, nonce);
+                const header = job.template.serializeBlockHeader(extraNonce1, extraNonce2, time, nonce);
 
                 if (job.template.target >= header.hashVal) {
                     // New block was found
-                    const block = job.template.serializeBlock(miner.extraNonce1, extraNonce2, time, nonce);
+                    const block = job.template.serializeBlock(extraNonce1, extraNonce2, time, nonce);
 
                     process.send({
                         sender: process.pid,
@@ -159,9 +177,9 @@ class StratumServer {
                             result: block.hex,
                             difficulty: Number(diff1 / block.header.hashVal),
                             needle: [
-                                user,
-                                miner.extraNonce1,
-                                extraNonce2.toString('hex'),
+                                this.#authorized.get(miner),
+                                extraNonce1,
+                                extraNonce2,
                                 time,
                                 nonce,
                                 job.template.randomId.toString('hex')
@@ -178,8 +196,8 @@ class StratumServer {
                             hashBytes: Buffer.from(header.hashBytes).reverse().toString('hex'),
                             difficulty: Number(diff1 / header.hashVal),
                             needle: [
-                                user,
-                                miner.extraNonce1,
+                                this.#authorized.get(miner),
+                                extraNonce1,
                                 extraNonce2,
                                 time,
                                 nonce,
@@ -200,24 +218,18 @@ class StratumServer {
         }
     }
 
-    handleConnection(miner) {
-        let subscriptionId = this.counter.next();
+    #handleConnection = (miner) => {
         miner.setKeepAlive(true);
         miner.setEncoding('utf8');
-        miner.subscribed = miner.authorized = false;
-        miner.extraNonce1 = this.counter.next(this.extraNonce1Len);
-        miner.subscriptionId = subscriptionId;
-        this.miners[subscriptionId] = miner;
-
-        console.log('Client', miner.remoteAddress, 'reserves subscriptionId', miner.subscriptionId);
 
         let dataBuffer = '';
 
-        miner.on('data', function (d) {
-            dataBuffer += d;
-            if (Buffer.byteLength(dataBuffer, 'utf8') > 10240) { //10KB
+        miner.on('data', (chunk) => {
+            dataBuffer += chunk;
+            if (Buffer.byteLength(dataBuffer, 'utf8') > 8192) { // 8KB limit
                 dataBuffer = null;
-                console.warn('Excessive packet size from miner', miner.subscriptionId);
+                if (this.#authorized.has(miner))
+                    console.warn('Excessive packet size from miner %s (%s)', miner.remoteAddress, this.#authorized.get(miner));
                 miner.destroy();
                 return;
             }
@@ -234,21 +246,30 @@ class StratumServer {
                         jsonData = JSON.parse(message);
                     }
                     catch (e) {
-                        console.warn("Malformed message from miner", miner.subscriptionId);
+                        if (this.#authorized.has(miner))
+                            console.log("Malformed message from miner %s (%s)", miner.remoteAddress, this.#authorized.get(miner));
+                        else if (this.#subscriptions.has(miner))
+                            console.log("Malformed message from miner %s (%s)", miner.remoteAddress, this.#subscriptions.get(miner));
                         miner.destroy();
                         break;
                     }
-                    this.server.stratum.handleMessage(miner, jsonData);
+                    this.#handleMessage(miner, jsonData);
                 }
                 dataBuffer = incomplete;
             }
         }).on('error', err => {
-            if (err.code !== 'ECONNRESET' && 'subscriptionId' in miner) {
-                console.warn("Socket Error from", miner.subscriptionId, "Error:", err);
+            if (err.code !== 'ECONNRESET') {
+                if (this.#authorized.has(miner)) {
+                    console.log('Socket error from miner %s (%s)', miner.remoteAddress, this.#authorized.get(miner));
+                    console.log(err);
+                } else if (this.#subscriptions.has(miner)) {
+                    console.log('Socket error from miner %s (%s)', miner.remoteAddress, this.#subscriptions.get(miner));
+                    console.log(err);
+                }
             }
         }).on('close', () => {
-            console.log('Freeing sunscriptionId', subscriptionId);
-            delete this.miners[subscriptionId];
+            this.#subscriptions.delete(miner);
+            this.#authorized.delete(miner);
         });
     }
 
