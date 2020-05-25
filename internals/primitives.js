@@ -220,8 +220,6 @@ class Template {
         const devReward = Math.floor(tpl.#coinbasevalue * donation);
         const minerReward = Math.floor(tpl.#coinbasevalue - (adminReward + devReward));
 
-        console.log(adminReward, devReward, minerReward, adminShare, donation, tpl.#coinbasevalue);
-
         const p2 = Buffer.concat([
             scriptSigPart2,
             util.packUInt32LE(txInSequence),
