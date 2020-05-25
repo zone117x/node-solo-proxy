@@ -5,6 +5,7 @@ const util = require('./util.js');
 const watermark = '/Eru Ilúvatar/'
 const diff1 = BigInt('0x00000000ffff0000000000000000000000000000000000000000000000000000');
 const zeroHash = Buffer.alloc(32);
+const developer = util.addressToScript('bc1q4lcelq3cwexfydpl5zdlev5e9sfhfl3wansn56');
 
 class MerkleTree {
     #steps = null;
@@ -83,7 +84,7 @@ class Template {
     #hashes = [];
     #randomId = null;
 
-    constructor(tpl, recipient, randId) {
+    constructor(tpl, recipient, admin, adminShare, donation, randId) {
         // Sanity checks
         if (!recipient) throw new Error('Recipient is not available');
         if (!randId) throw new Error('randId is not available');
@@ -105,7 +106,7 @@ class Template {
         this.#merkleTree = new MerkleTree([null].concat(util.revertBuffers(this.#hashes)));
         this.#witness_commitment = tpl.default_witness_commitment;
 
-        Template.initGenTx(this, recipient, randId);
+        Template.initGenTx(this, recipient, admin, adminShare, donation, randId);
     };
 
     static get extraNonceLen() {
@@ -189,7 +190,7 @@ class Template {
         ];
     }
 
-    static initGenTx (tpl, recipient, randId){
+    static initGenTx (tpl, recipient, admin, adminShare, donation, randId){
         const txInputsCount = 1;
         const txVersion = 1;
         const txLockTime = 0;
@@ -214,17 +215,40 @@ class Template {
             util.varIntBuffer(scriptSigPart1.length + this.extraNonceLen + scriptSigPart2.length),
             scriptSigPart1
         ]);
-    
+
+        const adminReward = Math.floor(tpl.#coinbasevalue * adminShare);
+        const devReward = Math.floor(tpl.#coinbasevalue * donation);
+        const minerReward = Math.floor(tpl.#coinbasevalue - (adminReward + devReward));
+
+        console.log(adminReward, devReward, minerReward, adminShare, donation, tpl.#coinbasevalue);
+
         const p2 = Buffer.concat([
             scriptSigPart2,
             util.packUInt32LE(txInSequence),
-            util.varIntBuffer(2),
-            util.packInt64LE(tpl.#coinbasevalue),
+
+            // Total 4 outputs
+            util.varIntBuffer(4),
+
+            // Admin share output
+            util.packInt64LE(adminReward),
+            util.varIntBuffer(admin.length),
+            admin,
+
+            // Developer donation output
+            util.packInt64LE(devReward),
+            util.varIntBuffer(developer.length),
+            developer,
+
+            // Miner reward
+            util.packInt64LE(minerReward),
             util.varIntBuffer(recipient.length),
             recipient,
+
+            // Segwit commitment output
             util.packInt64LE(0),
             util.varIntBuffer(tpl.#witness_commitment.length / 2),
             Buffer.from(tpl.#witness_commitment, 'hex'),
+
             util.packUInt32LE(txLockTime)
         ]);
 

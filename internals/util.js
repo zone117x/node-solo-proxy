@@ -194,8 +194,6 @@ exports.toBigIntHex = function (hex) {
 
 exports.addressToScript = function (addr) {
     const data = bech32.decode(addr);
-    if (data.prefix.indexOf('rubtc') !== 0)
-       throw new Error('Invalid bech32 prefix');
     const payload = data.words.slice(1);
     const hash = Buffer.from(bech32.fromWords(payload));
 

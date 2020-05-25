@@ -69,7 +69,7 @@ class StratumServer {
         }
     }
 
-    pushJob(data, recipient) {
+    pushJob(data, recipient, admin, adminFee, devDonation) {
         let cleanjobs = this.#templates.length && 
             (this.#templates[this.#templates.length - 1].template.previousblockhash != data.previousblockhash);
         if (cleanjobs) {
@@ -77,7 +77,7 @@ class StratumServer {
         }
 
         let jobid = this.#counter.next(4);
-        let template = new Template(data, recipient, this.#counter.nextBin(8));
+        let template = new Template(data, recipient, admin, adminFee, devDonation, this.#counter.nextBin(8));
         this.#templates.push({ jobid: jobid, template: template });
 
         if (this.#authorized.size !== 0) {

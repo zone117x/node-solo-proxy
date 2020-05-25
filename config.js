@@ -10,9 +10,16 @@ module.exports.RpcConf = {
 };
 
 module.exports.StratumConf = {
-    port: 3333,
+    port: 3334,
     extraNonce1Len: 4,
     shareTarget: diff1 / 16384n
 };
 
-module.exports.Recipient = 'rubtcm1qerzu8z5hggxxk0hcqgn2qflw07l94pu6mt8crv';
+// Recipient address
+module.exports.Recipient = 'bc1q4lcelq3cwexfydpl5zdlev5e9sfhfl3wansn56';
+// Node admin address
+module.exports.Admin = 'bc1q4lcelq3cwexfydpl5zdlev5e9sfhfl3wansn56';
+// 5% node fee
+module.exports.AdminFee = 0.05;
+// 2.5% developer donation
+module.exports.Donation = 0.025;

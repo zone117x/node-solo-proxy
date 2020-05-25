@@ -3,10 +3,12 @@
 const cluster = require('cluster');
 const numCPUs = require('os').cpus().length;
 
-const { StratumConf, Recipient } = require('./config.js');
+const { StratumConf, Recipient, Admin, AdminFee, Donation } = require('./config.js');
 const StratumServer = require('./internals/stratum.js');
 const util = require('./internals/util.js');
+
 const recipient = util.addressToScript(Recipient);
+const admin = util.addressToScript(Admin);
 
 if (cluster.isMaster) {
     console.log('Starting stratum master process');
@@ -68,9 +70,9 @@ if (cluster.isWorker) {
                 let fresh = false;
                 server.start(() => {
                     fresh = true;
-                    server.pushJob(msg.data, recipient);
+                    server.pushJob(msg.data, recipient, admin, AdminFee, Donation);
                 });
-                if (!fresh) server.pushJob(msg.data, recipient);
+                if (!fresh) server.pushJob(msg.data, recipient, admin, AdminFee, Donation);
         
                 console.log('Worker', process.pid, 'got new job containing', msg.data.transactions.length, 'transactions and timestamped at', new Date(msg.data.curtime*1000));
             }; break;
