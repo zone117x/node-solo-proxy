@@ -13,7 +13,6 @@ function timestamp() {
 
 (async () => {
     let upstream = new Upstream;
-    let tpl;
 
     try {
         // Check RPC
@@ -22,6 +21,26 @@ function timestamp() {
         console.log('RPC connection successful, block height %d mining difficulty %s', miningInfo.blocks, miningInfo.difficulty);
     } catch(e) {
         console.log('Error while testing upstream connection', e);
+        process.exit(-1);
+    }
+
+    let tpl;
+    let is_dgb;
+
+    // Detect GBT param set
+    try {
+        console.log('Detecting required GBT parameter set...');
+        try {
+            await upstream.getTemplate();
+            is_dgb = false;
+            console.log('Detected bitcoin-like classic GBT');
+        } catch(e) {
+            await upstream.getTemplateDGB();
+            is_dgb = true;
+            console.log('Detected digibyte-like GBT');
+        }
+    } catch(e) {
+        console.log('Unable to detect GBT params set', e);
         process.exit(-1);
     }
 
@@ -68,7 +87,17 @@ function timestamp() {
     // Work update loop
     try {
         while (true) {
-            let newTpl = (tpl === undefined) ? await upstream.getTemplate() : await upstream.longPoll(tpl.longpollid);
+            let newTpl;
+
+            // Get new template
+            if (is_dgb) {
+                newTpl = (tpl === undefined) ? await upstream.getTemplateDGB() : await upstream.longPollDGB(tpl.longpollid);
+            }
+            else {
+                newTpl = (tpl === undefined) ? await upstream.getTemplate() : await upstream.longPoll(tpl.longpollid);
+            }
+
+            // Test for previous block changes
             if (tpl !== undefined && newTpl.previousblockhash === tpl.previousblockhash && (newTpl.curtime - tpl.curtime < 30)) {
                 if (newTpl.default_witness_commitment === tpl.default_witness_commitment) {
                     // hack
