@@ -97,21 +97,15 @@ function timestamp() {
                 newTpl = (tpl === undefined) ? await upstream.getTemplate() : await upstream.longPoll(tpl.longpollid);
             }
 
-            // Test for previous block changes
-            if (tpl !== undefined && newTpl.previousblockhash === tpl.previousblockhash && tpl.curtime === newTpl.curtime) {
-                // Update current template
-                tpl = newTpl;
-
+            if (tpl !== undefined && tpl.previousblockhash === newTpl.previousblockhash && tpl.default_witness_commitment === newTpl.default_witness_commitment) {
                 // hack for sudden drop of longpoll requests
                 await sleep(30000);
-
-                // Try to request template again
-                continue;
             }
-
-            // Send new job to clients
-            console.log('Got prevhash %s from upstream', newTpl.previousblockhash);
-            clients.send({ sender: process.pid, what: 'newjob', data: newTpl });
+            else {
+                // Send new job to clients
+                console.log('Got prevhash %s from upstream', newTpl.previousblockhash);
+                clients.send({ sender: process.pid, what: 'newjob', data: newTpl });
+            }
 
             // Update current template
             tpl = newTpl;
