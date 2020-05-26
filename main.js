@@ -98,16 +98,14 @@ function timestamp() {
             }
 
             // Test for previous block changes
-            if (tpl !== undefined && newTpl.previousblockhash === tpl.previousblockhash && (newTpl.curtime - tpl.curtime < 30)) {
-
-                if (newTpl.default_witness_commitment === tpl.default_witness_commitment && tpl.curtime === newTpl.curtime) {
-                    // hack for sudden drop of longpoll requests
-                    await sleep(5000);
-                }
-
+            if (tpl !== undefined && newTpl.previousblockhash === tpl.previousblockhash && tpl.curtime === newTpl.curtime) {
                 // Update current template
                 tpl = newTpl;
 
+                // hack for sudden drop of longpoll requests
+                await sleep(30000);
+
+                // Try to request template again
                 continue;
             }
 
