@@ -99,15 +99,23 @@ function timestamp() {
 
             // Test for previous block changes
             if (tpl !== undefined && newTpl.previousblockhash === tpl.previousblockhash && (newTpl.curtime - tpl.curtime < 30)) {
-                if (newTpl.default_witness_commitment === tpl.default_witness_commitment) {
-                    // hack
+
+                if (newTpl.default_witness_commitment === tpl.default_witness_commitment && tpl.curtime === newTpl.curtime) {
+                    // hack for sudden drop of longpoll requests
                     await sleep(5000);
                 }
+
+                // Update current template
+                tpl = newTpl;
+
                 continue;
             }
 
+            // Send new job to clients
             console.log('Got prevhash %s from upstream', newTpl.previousblockhash);
             clients.send({ sender: process.pid, what: 'newjob', data: newTpl });
+
+            // Update current template
             tpl = newTpl;
         }
     } catch(e) {
