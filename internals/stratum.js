@@ -83,7 +83,7 @@ class StratumServer {
         if (this.#authorized.size !== 0) {
             let job = template.getJobParams(jobid, cleanjobs);
             console.log('Worker %d is broadcasting job %s to %d miners', process.pid, jobid, this.#authorized.size);
-            for(const miner of this.#authorized) {
+            for(const miner of this.#authorized.values()) {
                 // Broadcast jobs to authorized miners
                 StratumServer.notify(miner, 'mining.notify', job);
             };
