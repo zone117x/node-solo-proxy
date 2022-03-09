@@ -20,8 +20,6 @@ module.exports.StratumConf = {
     shareTarget: diff1 / 500000n
 };
 
-console.log(`__SHARE_TARGET:: ${module.exports.StratumConf.shareTarget.toString()}`);
-
 // Recipient address
 // module.exports.Recipient = 'bc1q4lcelq3cwexfydpl5zdlev5e';
 module.exports.Recipient = 'tb1qc7sfev9vr5w5uqsft7rmy23s42yx50rac8ftrw';
