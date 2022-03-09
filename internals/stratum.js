@@ -72,7 +72,7 @@ class StratumServer {
     pushJob(data, recipient, admin, adminFee, devDonation) {
         let cleanjobs = this.#templates.length && 
             (this.#templates[this.#templates.length - 1].template.previousblockhash != data.previousblockhash);
-        if (cleanjobs) {
+        if (false && cleanjobs) {
             this.#templates.length = 0;
         }
 
