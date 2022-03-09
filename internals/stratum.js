@@ -147,7 +147,7 @@ class StratumServer {
                 StratumServer.reply(miner, message.id, null, topJob.template.data);
             }; break;
             case 'mining.submit': {
-                console.log('__GOT mining.submit____');
+                console.log('__GOT mining.submit____', message.params);
                 if (!this.#subscriptions.has(miner) || !this.#authorized.has(miner)) {
                     console.log(`__You are not eligible to do such requests: ___ ${this.#subscriptions.has(miner)}, ${this.#authorized.has(miner)}`);
                     return StratumServer.reply(miner, message.id, 'You are not eligible to do such requests', null);
