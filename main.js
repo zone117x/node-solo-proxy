@@ -50,6 +50,7 @@ function timestamp() {
     // Solution messages handler
     clients.on('message', async msg => {
         if (msg.what === 'share') {
+            console.log(`_____GOT SHARE_____`, msg.data);
             let { coinbase, header, hashBytes, difficulty } = msg.data;
             let [user, extraNonce1, extraNonce2, time, nonce, randomId] = msg.data.needle;
 
@@ -61,6 +62,7 @@ function timestamp() {
         }
 
         if (msg.what === 'block') {
+            console.log(`_____GOT block______`, msg.data);
             let { result, coinbase, header, hashBytes, difficulty } = msg.data;
             let [user, extraNonce1, extraNonce2, time, nonce, randomId] = msg.data.needle;
 
