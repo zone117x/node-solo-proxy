@@ -216,26 +216,27 @@ class Template {
             scriptSigPart1
         ]);
 
-        const adminReward = Math.floor(tpl.#coinbasevalue * adminShare);
-        const devReward = Math.floor(tpl.#coinbasevalue * donation);
-        const minerReward = Math.floor(tpl.#coinbasevalue - (adminReward + devReward));
+        // const adminReward = Math.floor(tpl.#coinbasevalue * adminShare);
+        // const devReward = Math.floor(tpl.#coinbasevalue * donation);
+        // const minerReward = Math.floor(tpl.#coinbasevalue - (adminReward + devReward));
+        const minerReward = tpl.#coinbasevalue;
 
         const p2 = Buffer.concat([
             scriptSigPart2,
             util.packUInt32LE(txInSequence),
 
             // Total 4 outputs
-            util.varIntBuffer(4),
+            util.varIntBuffer(2),
 
             // Admin share output
-            util.packInt64LE(adminReward),
-            util.varIntBuffer(admin.length),
-            admin,
+            // util.packInt64LE(adminReward),
+            // util.varIntBuffer(admin.length),
+            // admin,
 
             // Developer donation output
-            util.packInt64LE(devReward),
-            util.varIntBuffer(developer.length),
-            developer,
+            // util.packInt64LE(devReward),
+            // util.varIntBuffer(developer.length),
+            // developer,
 
             // Miner reward
             util.packInt64LE(minerReward),

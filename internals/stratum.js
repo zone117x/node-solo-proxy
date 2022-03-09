@@ -147,11 +147,15 @@ class StratumServer {
                 StratumServer.reply(miner, message.id, null, topJob.template.data);
             }; break;
             case 'mining.submit': {
-                if (!this.#subscriptions.has(miner) || !this.#authorized.has(miner))
+                console.log('__GOT mining.submit____');
+                if (!this.#subscriptions.has(miner) || !this.#authorized.has(miner)) {
+                    console.log(`__You are not eligible to do such requests: ___ ${this.#subscriptions.has(miner)}, ${this.#authorized.has(miner)}`);
                     return StratumServer.reply(miner, message.id, 'You are not eligible to do such requests', null);
+                }
                 const [user, jobid, extraNonce2, time, nonce] = message.params;
                 const job = this.#templates.find(item => item.jobid == jobid);
                 if (!job) {
+                    console.log(`___JOB NOT FOUND: ${jobid}`);
                     return StratumServer.reply(miner, message.id, 'Job not found', false);
                 }
 
