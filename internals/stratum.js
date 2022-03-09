@@ -167,7 +167,7 @@ class StratumServer {
                 // New block header
                 const header = job.template.serializeBlockHeader(extraNonce1, extraNonce2, time, nonce);
 
-                if (job.template.target >= header.hashVal) {
+                if (true || job.template.target >= header.hashVal) {
                     // New block was found
                     const block = job.template.serializeBlock(extraNonce1, extraNonce2, time, nonce);
 
